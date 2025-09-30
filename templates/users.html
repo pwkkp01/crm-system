@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Użytkownicy{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Zarządzanie użytkownikami</h1>
+
+<div class="card shadow">
+    <div class="card-body">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Użytkownik</th>
+                    <th>Email</th>
+                    <th>Rola</th>
+                    <th>Status</th>
+                    <th>Akcje</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td><strong>{{ user.username }}</strong></td>
+                    <td>{{ user.email }}</td>
+                    <td>
+                        <span class="badge bg-{% if user.role == 'admin' %}danger{% else %}secondary{% endif %}">
+                            {{ user.role }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if user.is_approved %}
+                        <span class="badge bg-success">Aktywny</span>
+                        {% else %}
+                        <span class="badge bg-warning">Oczekuje</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if not user.is_approved %}
+                        <a href="{{ url_for('approve_user', user_id=user.id) }}" class="btn btn-sm btn-success">
+                            Zatwierdź
+                        </a>
+                        {% endif %}
+                        
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-info dropdown-toggle" data-bs-toggle="dropdown">
+                                Zmień rolę
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="{{ url_for('change_role', user_id=user.id, role='admin') }}">Admin</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('change_role', user_id=user.id, role='user') }}">Użytkownik</a></li>
+                            </ul>
+                        </div>
+                        
+                        {% if user.id != session.user_id %}
+                        <form method="POST" action="{{ url_for('delete_user', user_id=user.id) }}" style="display:inline;">
+                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Usunąć użytkownika?')">
+                                Usuń
+                            </button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<a href="{{ url_for('index') }}" class="btn btn-secondary mt-3">Powrót</a>
+{% endblock %}
