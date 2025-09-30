@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - CRM{% endblock %}
+{% block content %}
+<h1 class="mb-4"><i class="bi bi-speedometer2"></i> Dashboard</h1>
+
+<!-- Statystyki -->
+<div class="row mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="card text-white bg-primary shadow">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-people"></i> Wszystkie Leady</h5>
+                <h2 class="mb-0">{{ stats.total }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card text-white bg-secondary shadow">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-person-plus"></i> Nowe</h5>
+                <h2 class="mb-0">{{ stats.nowy }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card text-white bg-success shadow">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-check-circle"></i> Klienci</h5>
+                <h2 class="mb-0">{{ stats.klient }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lista leadów -->
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="bi bi-list-ul"></i> Lista Leadów</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Imię i Nazwisko</th>
+                        <th>Telefon</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th>Źródło</th>
+                        <th>Wartość</th>
+                        <th>Akcje</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lead in leads %}
+                    <tr>
+                        <td>
+                            <a href="/lead/{{ lead.id }}" class="text-decoration-none">
+                                <strong>{{ lead.first_name }} {{ lead.last_name }}</strong>
+                            </a>
+                        </td>
+                        <td>
+                            {% if lead.phone %}
+                                <a href="tel:{{ lead.phone }}">{{ lead.phone }}</a>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{{ lead.email or '-' }}</td>
+                        <td>
+                            <span class="badge bg-{{ get_status_color(lead.status) }}">
+                                {{ lead.status }}
+                            </span>
+                        </td>
+                        <td>{{ lead.source or '-' }}</td>
+                        <td>{{ lead.potential_value }} PLN</td>
+                        <td>
+                            <a href="/lead/{{ lead.id }}" class="btn btn-sm btn-info">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                            <p class="mt-2">Brak leadów. <a href="/add">Dodaj pierwszego leada!</a></p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
