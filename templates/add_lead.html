@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Dodaj Lead - CRM{% endblock %}
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-person-plus-fill"></i> Dodaj Nowego Leada</h2>
+
+<div class="card shadow">
+    <div class="card-body p-4">
+        <form method="POST">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">Imię <span class="text-danger">*</span></label>
+                    <input type="text" name="first_name" class="form-control" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Nazwisko <span class="text-danger">*</span></label>
+                    <input type="text" name="last_name" class="form-control" required>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">Telefon</label>
+                    <input type="text" name="phone" class="form-control" placeholder="+48 123 456 789">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Email</label>
+                    <input type="email" name="email" class="form-control" placeholder="email@example.com">
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">Data urodzenia</label>
+                    <input type="date" name="birth_date" class="form-control">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Data follow-up</label>
+                    <input type="date" name="follow_up_date" class="form-control">
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="nowy">Nowy</option>
+                        <option value="umówione spotkanie">Umówione spotkanie</option>
+                        <option value="oczekiwanie">Oczekiwanie</option>
+                        <option value="odezwać się">Odezwać się</option>
+                        <option value="klient">Klient</option>
+                        <option value="spadł">Spadł</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Źródło</label>
+                    <input type="text" name="source" class="form-control" placeholder="np. Facebook, Google, Polecenie">
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Wartość potencjalna (PLN)</label>
+                <input type="number" name="potential_value" class="form-control" step="0.01" value="0">
+            </div>
+            
+            <hr class="my-4">
+            
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-check-circle"></i> Dodaj Lead
+                </button>
+                <a href="/" class="btn btn-secondary">
+                    <i class="bi bi-x-circle"></i> Anuluj
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
