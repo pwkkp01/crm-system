@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Zarządzanie tagami{% endblock %}
+{% block content %}
+<h1 class="mb-4"><i class="bi bi-tags"></i> Zarządzanie tagami</h1>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Dodaj nowy tag</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('add_tag') }}">
+                    <div class="mb-3">
+                        <label class="form-label">Nazwa tagu</label>
+                        <input type="text" name="name" class="form-control" placeholder="np. VIP, Gorący lead" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Kolor</label>
+                        <select name="color" class="form-select">
+                            <option value="primary">Niebieski</option>
+                            <option value="success">Zielony</option>
+                            <option value="danger">Czerwony</option>
+                            <option value="warning">Żółty</option>
+                            <option value="info">Turkusowy</option>
+                            <option value="secondary">Szary</option>
+                            <option value="dark">Czarny</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-plus-circle"></i> Dodaj tag
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">Lista tagów ({{ tags|length }})</h5>
+            </div>
+            <div class="card-body">
+                {% if tags %}
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Tag</th>
+                            <th>Użyć w leadach</th>
+                            <th>Data utworzenia</th>
+                            <th>Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tag in tags %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-{{ tag.color }}">{{ tag.name }}</span>
+                            </td>
+                            <td>{{ tag.leads|length }}</td>
+                            <td>{{ tag.created_at.strftime('%Y-%m-%d') }}</td>
+                            <td>
+                                <form method="POST" action="{{ url_for('delete_tag', tag_id=tag.id) }}" style="display:inline;">
+                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Usunąć tag?')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted text-center py-4">Brak tagów. Dodaj pierwszy!</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<a href="{{ url_for('index') }}" class="btn btn-secondary mt-3">
+    <i class="bi bi-arrow-left"></i> Powrót
+</a>
+{% endblock %}
