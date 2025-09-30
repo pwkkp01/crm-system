@@ -3,6 +3,38 @@
 {% block content %}
 <h1 class="mb-4"><i class="bi bi-speedometer2"></i> Dashboard</h1>
 
+<!-- Wyszukiwarka i filtry -->
+<div class="card shadow mb-4">
+    <div class="card-body">
+        <form method="GET" action="/search" class="row g-3">
+            <div class="col-md-5">
+                <input type="text" name="q" class="form-control" placeholder="Szukaj: imię, nazwisko, telefon..." value="{{ search_query or '' }}">
+            </div>
+            <div class="col-md-3">
+                <select name="status" class="form-select">
+                    <option value="">Wszystkie statusy</option>
+                    <option value="nowy" {% if status_filter == 'nowy' %}selected{% endif %}>Nowy</option>
+                    <option value="umówione spotkanie" {% if status_filter == 'umówione spotkanie' %}selected{% endif %}>Umówione spotkanie</option>
+                    <option value="oczekiwanie" {% if status_filter == 'oczekiwanie' %}selected{% endif %}>Oczekiwanie</option>
+                    <option value="odezwać się" {% if status_filter == 'odezwać się' %}selected{% endif %}>Odezwać się</option>
+                    <option value="klient" {% if status_filter == 'klient' %}selected{% endif %}>Klient</option>
+                    <option value="spadł" {% if status_filter == 'spadł' %}selected{% endif %}>Spadł</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Szukaj
+                </button>
+            </div>
+            <div class="col-md-2">
+                <a href="/export" class="btn btn-success w-100">
+                    <i class="bi bi-download"></i> CSV
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Statystyki -->
 <div class="row mb-4">
     <div class="col-md-4 mb-3">
