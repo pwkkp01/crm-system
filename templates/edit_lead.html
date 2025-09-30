@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-4">Edytuj: {{ lead.first_name }} {{ lead.last_name }}</h2>
+<div class="card">
+    <div class="card-body">
+        <form method="POST">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label>Imię *</label>
+                    <input type="text" name="first_name" class="form-control" value="{{ lead.first_name }}" required>
+                </div>
+                <div class="col-md-6">
+                    <label>Nazwisko *</label>
+                    <input type="text" name="last_name" class="form-control" value="{{ lead.last_name }}" required>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label>Telefon</label>
+                    <input type="text" name="phone" class="form-control" value="{{ lead.phone or '' }}">
+                </div>
+                <div class="col-md-6">
+                    <label>Email</label>
+                    <input type="email" name="email" class="form-control" value="{{ lead.email or '' }}">
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label>Data urodzenia</label>
+                    <input type="date" name="birth_date" class="form-control" value="{{ lead.birth_date or '' }}">
+                </div>
+                <div class="col-md-6">
+                    <label>Follow-up</label>
+                    <input type="date" name="follow_up_date" class="form-control" value="{{ lead.follow_up_date or '' }}">
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label>Status</label>
+                    <select name="status" class="form-select">
+                        <option value="nowy" {% if lead.status=='nowy' %}selected{% endif %}>Nowy</option>
+                        <option value="umówione spotkanie" {% if lead.status=='umówione spotkanie' %}selected{% endif %}>Umówione spotkanie</option>
+                        <option value="oczekiwanie" {% if lead.status=='oczekiwanie' %}selected{% endif %}>Oczekiwanie</option>
+                        <option value="odezwać się" {% if lead.status=='odezwać się' %}selected{% endif %}>Odezwać się</option>
+                        <option value="klient" {% if lead.status=='klient' %}selected{% endif %}>Klient</option>
+                        <option value="spadł" {% if lead.status=='spadł' %}selected{% endif %}>Spadł</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label>Źródło</label>
+                    <input type="text" name="source" class="form-control" value="{{ lead.source or '' }}">
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label>Wartość potencjalna</label>
+                    <input type="number" name="potential_value" class="form-control" step="0.01" value="{{ lead.potential_value or 0 }}">
+                </div>
+                <div class="col-md-4">
+                    <label>Wartość sprzedaży</label>
+                    <input type="number" name="sale_value" class="form-control" step="0.01" value="{{ lead.sale_value or 0 }}">
+                </div>
+                <div class="col-md-4">
+                    <label>Prowizja</label>
+                    <input type="number" name="commission" class="form-control" step="0.01" value="{{ lead.commission or 0 }}">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-success">Zapisz</button>
+            <a href="/lead/{{ lead.id }}" class="btn btn-secondary">Anuluj</a>
+        </form>
+    </div>
+</div>
+{% endblock %}
