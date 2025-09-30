@@ -58,106 +58,6 @@ def login_required(f):
 def get_status_color(status):
     colors = {'nowy': 'secondary', 'umówione spotkanie': 'warning', 'oczekiwanie': 'warning', 'odezwać się': 'info', 'klient': 'success', 'spadł': 'danger'}
     return colors.get(status, 'secondary')
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
-        
-        # Walidacja
-        if password != confirm_password:
-            flash('Hasła nie są identyczne', 'danger')
-            return redirect(url_for('register'))
-        
-        if User.query.filter_by(username=username).first():
-            flash('Nazwa użytkownika już istnieje', 'danger')
-            return redirect(url_for('register'))
-        
-        if User.query.filter_by(email=email).first():
-            flash('Email już jest zarejestrowany', 'danger')
-            return redirect(url_for('register'))
-        
-        # Utwórz użytkownika (nieaktywnego)
-        new_user = User(
-            username=username,
-            email=email,
-            password_hash=generate_password_hash(password),
-            role='user',
-            is_approved=False  # wymaga zatwierdzenia przez admina
-        )
-        db.session.add(new_user)
-        db.session.commit()
-        
-        flash('Rejestracja zakończona! Poczekaj na zatwierdzenie przez administratora.', 'success')
-        return redirect(url_for('login'))
-    
-    return render_template('register.html')
-
-@app.route('/users')
-@login_required
-def users():
-    # Tylko admin może zarządzać użytkownikami
-    current_user = User.query.get(session['user_id'])
-    if current_user.role != 'admin':
-        flash('Brak dostępu', 'danger')
-        return redirect(url_for('index'))
-    
-    all_users = User.query.all()
-    return render_template('users.html', users=all_users)
-
-@app.route('/approve_user/<int:user_id>')
-@login_required
-def approve_user(user_id):
-    current_user = User.query.get(session['user_id'])
-    if current_user.role != 'admin':
-        flash('Brak dostępu', 'danger')
-        return redirect(url_for('index'))
-    
-    user = User.query.get_or_404(user_id)
-    user.is_approved = True
-    db.session.commit()
-    flash(f'Użytkownik {user.username} został zatwierdzony!', 'success')
-    return redirect(url_for('users'))
-
-@app.route('/delete_user/<int:user_id>', methods=['POST'])
-@login_required
-def delete_user(user_id):
-    current_user = User.query.get(session['user_id'])
-    if current_user.role != 'admin':
-        flash('Brak dostępu', 'danger')
-        return redirect(url_for('index'))
-    
-    user = User.query.get_or_404(user_id)
-    
-    # Nie można usunąć samego siebie
-    if user.id == session['user_id']:
-        flash('Nie możesz usunąć swojego konta!', 'danger')
-        return redirect(url_for('users'))
-    
-    db.session.delete(user)
-    db.session.commit()
-    flash(f'Użytkownik {user.username} został usunięty', 'info')
-    return redirect(url_for('users'))
-
-@app.route('/change_role/<int:user_id>/<role>')
-@login_required
-def change_role(user_id, role):
-    current_user = User.query.get(session['user_id'])
-    if current_user.role != 'admin':
-        flash('Brak dostępu', 'danger')
-        return redirect(url_for('index'))
-    
-    if role not in ['admin', 'user']:
-        flash('Nieprawidłowa rola', 'danger')
-        return redirect(url_for('users'))
-    
-    user = User.query.get_or_404(user_id)
-    user.role = role
-    db.session.commit()
-    flash(f'Rola użytkownika {user.username} zmieniona na {role}', 'success')
-    return redirect(url_for('users'))
     
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -165,11 +65,19 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         user = User.query.filter_by(username=username).first()
+        
         if user and check_password_hash(user.password_hash, password):
+            # Sprawdź czy konto jest zatwierdzone
+            if not user.is_approved:
+                flash('Twoje konto oczekuje na zatwierdzenie przez administratora', 'warning')
+                return redirect(url_for('login'))
+            
             session['user_id'] = user.id
             session['username'] = user.username
+            session['role'] = user.role
             flash('Zalogowano pomyślnie!', 'success')
             return redirect(url_for('index'))
+        
         flash('Błędne dane logowania', 'danger')
     return render_template('login.html')
 
@@ -331,7 +239,108 @@ def export_csv():
     response.headers['Content-Disposition'] = 'attachment; filename=leady.csv'
     response.headers['Content-Type'] = 'text/csv; charset=utf-8'
     return response
+    
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        # Walidacja
+        if password != confirm_password:
+            flash('Hasła nie są identyczne', 'danger')
+            return redirect(url_for('register'))
+        
+        if User.query.filter_by(username=username).first():
+            flash('Nazwa użytkownika już istnieje', 'danger')
+            return redirect(url_for('register'))
+        
+        if User.query.filter_by(email=email).first():
+            flash('Email już jest zarejestrowany', 'danger')
+            return redirect(url_for('register'))
+        
+        # Utwórz użytkownika (nieaktywnego)
+        new_user = User(
+            username=username,
+            email=email,
+            password_hash=generate_password_hash(password),
+            role='user',
+            is_approved=False  # wymaga zatwierdzenia przez admina
+        )
+        db.session.add(new_user)
+        db.session.commit()
+        
+        flash('Rejestracja zakończona! Poczekaj na zatwierdzenie przez administratora.', 'success')
+        return redirect(url_for('login'))
+    
+    return render_template('register.html')
 
+@app.route('/users')
+@login_required
+def users():
+    # Tylko admin może zarządzać użytkownikami
+    current_user = User.query.get(session['user_id'])
+    if current_user.role != 'admin':
+        flash('Brak dostępu', 'danger')
+        return redirect(url_for('index'))
+    
+    all_users = User.query.all()
+    return render_template('users.html', users=all_users)
+
+@app.route('/approve_user/<int:user_id>')
+@login_required
+def approve_user(user_id):
+    current_user = User.query.get(session['user_id'])
+    if current_user.role != 'admin':
+        flash('Brak dostępu', 'danger')
+        return redirect(url_for('index'))
+    
+    user = User.query.get_or_404(user_id)
+    user.is_approved = True
+    db.session.commit()
+    flash(f'Użytkownik {user.username} został zatwierdzony!', 'success')
+    return redirect(url_for('users'))
+
+@app.route('/delete_user/<int:user_id>', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    current_user = User.query.get(session['user_id'])
+    if current_user.role != 'admin':
+        flash('Brak dostępu', 'danger')
+        return redirect(url_for('index'))
+    
+    user = User.query.get_or_404(user_id)
+    
+    # Nie można usunąć samego siebie
+    if user.id == session['user_id']:
+        flash('Nie możesz usunąć swojego konta!', 'danger')
+        return redirect(url_for('users'))
+    
+    db.session.delete(user)
+    db.session.commit()
+    flash(f'Użytkownik {user.username} został usunięty', 'info')
+    return redirect(url_for('users'))
+
+@app.route('/change_role/<int:user_id>/<role>')
+@login_required
+def change_role(user_id, role):
+    current_user = User.query.get(session['user_id'])
+    if current_user.role != 'admin':
+        flash('Brak dostępu', 'danger')
+        return redirect(url_for('index'))
+    
+    if role not in ['admin', 'user']:
+        flash('Nieprawidłowa rola', 'danger')
+        return redirect(url_for('users'))
+    
+    user = User.query.get_or_404(user_id)
+    user.role = role
+    db.session.commit()
+    flash(f'Rola użytkownika {user.username} zmieniona na {role}', 'success')
+    return redirect(url_for('users'))
+    
 # ============== AUTOMATYCZNA INICJALIZACJA BAZY ==============
 # To wykona się zawsze - lokalnie i na Render
 with app.app_context():
