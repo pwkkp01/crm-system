@@ -67,7 +67,6 @@ def login():
         user = User.query.filter_by(username=username).first()
         
         if user and check_password_hash(user.password_hash, password):
-            # Sprawdź czy konto jest zatwierdzone
             if not user.is_approved:
                 flash('Twoje konto oczekuje na zatwierdzenie przez administratora', 'warning')
                 return redirect(url_for('login'))
@@ -136,12 +135,27 @@ def add_lead():
 @login_required
 def lead_detail(lead_id):
     lead = Lead.query.get_or_404(lead_id)
+    
+    # ZABEZPIECZENIE - Sprawdź uprawnienia
+    current_user = User.query.get(session['user_id'])
+    if lead.user_id != session['user_id'] and current_user.role != 'admin':
+        flash('Nie masz uprawnień do przeglądania tego leada!', 'danger')
+        return redirect(url_for('index'))
+    
     notes = Note.query.filter_by(lead_id=lead_id).order_by(Note.created_at.desc()).all()
     return render_template('lead_detail.html', lead=lead, notes=notes, get_status_color=get_status_color)
 
 @app.route('/add_note/<int:lead_id>', methods=['POST'])
 @login_required
 def add_note(lead_id):
+    lead = Lead.query.get_or_404(lead_id)
+    
+    # ZABEZPIECZENIE - Sprawdź uprawnienia
+    current_user = User.query.get(session['user_id'])
+    if lead.user_id != session['user_id'] and current_user.role != 'admin':
+        flash('Nie masz uprawnień!', 'danger')
+        return redirect(url_for('index'))
+    
     content = request.form.get('content')
     if content:
         note = Note(content=content, lead_id=lead_id)
@@ -154,6 +168,13 @@ def add_note(lead_id):
 @login_required
 def delete_lead(lead_id):
     lead = Lead.query.get_or_404(lead_id)
+    
+    # ZABEZPIECZENIE - Sprawdź uprawnienia
+    current_user = User.query.get(session['user_id'])
+    if lead.user_id != session['user_id'] and current_user.role != 'admin':
+        flash('Nie masz uprawnień do usunięcia tego leada!', 'danger')
+        return redirect(url_for('index'))
+    
     db.session.delete(lead)
     db.session.commit()
     flash('Lead usunięty', 'info')
@@ -163,6 +184,13 @@ def delete_lead(lead_id):
 @login_required
 def edit_lead(lead_id):
     lead = Lead.query.get_or_404(lead_id)
+    
+    # ZABEZPIECZENIE - Sprawdź uprawnienia
+    current_user = User.query.get(session['user_id'])
+    if lead.user_id != session['user_id'] and current_user.role != 'admin':
+        flash('Nie masz uprawnień do edycji tego leada!', 'danger')
+        return redirect(url_for('index'))
+    
     if request.method == 'POST':
         lead.first_name = request.form.get('first_name')
         lead.last_name = request.form.get('last_name')
@@ -248,7 +276,6 @@ def register():
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
         
-        # Walidacja
         if password != confirm_password:
             flash('Hasła nie są identyczne', 'danger')
             return redirect(url_for('register'))
@@ -261,13 +288,12 @@ def register():
             flash('Email już jest zarejestrowany', 'danger')
             return redirect(url_for('register'))
         
-        # Utwórz użytkownika (nieaktywnego)
         new_user = User(
             username=username,
             email=email,
             password_hash=generate_password_hash(password),
             role='user',
-            is_approved=False  # wymaga zatwierdzenia przez admina
+            is_approved=False
         )
         db.session.add(new_user)
         db.session.commit()
@@ -280,7 +306,6 @@ def register():
 @app.route('/users')
 @login_required
 def users():
-    # Tylko admin może zarządzać użytkownikami
     current_user = User.query.get(session['user_id'])
     if current_user.role != 'admin':
         flash('Brak dostępu', 'danger')
@@ -313,7 +338,6 @@ def delete_user(user_id):
     
     user = User.query.get_or_404(user_id)
     
-    # Nie można usunąć samego siebie
     if user.id == session['user_id']:
         flash('Nie możesz usunąć swojego konta!', 'danger')
         return redirect(url_for('users'))
@@ -340,13 +364,10 @@ def change_role(user_id, role):
     db.session.commit()
     flash(f'Rola użytkownika {user.username} zmieniona na {role}', 'success')
     return redirect(url_for('users'))
-    
-# ============== AUTOMATYCZNA INICJALIZACJA BAZY ==============
-# To wykona się zawsze - lokalnie i na Render
+
 with app.app_context():
     db.create_all()
     
-    # Utwórz admina jeśli nie istnieje
     if not User.query.filter_by(username='admin').first():
         admin = User(
             username='admin', 
