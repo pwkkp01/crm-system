@@ -1,9 +1,11 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date
 from functools import wraps
 import os
+import csv
+import io
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -66,21 +68,26 @@ def login():
         if user and check_password_hash(user.password_hash, password):
             session['user_id'] = user.id
             session['username'] = user.username
-            flash('Zalogowano!', 'success')
+            flash('Zalogowano pomyślnie!', 'success')
             return redirect(url_for('index'))
-        flash('Błędne dane', 'danger')
+        flash('Błędne dane logowania', 'danger')
     return render_template('login.html')
 
 @app.route('/logout')
 def logout():
     session.clear()
+    flash('Wylogowano', 'info')
     return redirect(url_for('login'))
 
 @app.route('/')
 @login_required
 def index():
     leads = Lead.query.filter_by(user_id=session['user_id']).all()
-    stats = {'total': len(leads), 'nowy': len([l for l in leads if l.status == 'nowy']), 'klient': len([l for l in leads if l.status == 'klient'])}
+    stats = {
+        'total': len(leads), 
+        'nowy': len([l for l in leads if l.status == 'nowy']), 
+        'klient': len([l for l in leads if l.status == 'klient'])
+    }
     return render_template('index.html', leads=leads, stats=stats, get_status_color=get_status_color)
 
 @app.route('/add', methods=['GET', 'POST'])
@@ -99,10 +106,21 @@ def add_lead():
                 follow_up = datetime.strptime(request.form.get('follow_up_date'), '%Y-%m-%d').date()
             except:
                 pass
-        lead = Lead(first_name=request.form.get('first_name'), last_name=request.form.get('last_name'), phone=request.form.get('phone'), email=request.form.get('email'), birth_date=birth_date, follow_up_date=follow_up, status=request.form.get('status', 'nowy'), source=request.form.get('source'), potential_value=float(request.form.get('potential_value', 0) or 0), user_id=session['user_id'])
+        lead = Lead(
+            first_name=request.form.get('first_name'), 
+            last_name=request.form.get('last_name'), 
+            phone=request.form.get('phone'), 
+            email=request.form.get('email'), 
+            birth_date=birth_date, 
+            follow_up_date=follow_up, 
+            status=request.form.get('status', 'nowy'), 
+            source=request.form.get('source'), 
+            potential_value=float(request.form.get('potential_value', 0) or 0), 
+            user_id=session['user_id']
+        )
         db.session.add(lead)
         db.session.commit()
-        flash('Lead dodany!', 'success')
+        flash('Lead dodany pomyślnie!', 'success')
         return redirect(url_for('index'))
     return render_template('add_lead.html')
 
@@ -132,6 +150,7 @@ def delete_lead(lead_id):
     db.session.commit()
     flash('Lead usunięty', 'info')
     return redirect(url_for('index'))
+
 @app.route('/edit/<int:lead_id>', methods=['GET', 'POST'])
 @login_required
 def edit_lead(lead_id):
@@ -172,39 +191,67 @@ def search():
     leads_query = Lead.query.filter_by(user_id=session['user_id'])
     if query:
         pattern = f"%{query}%"
-        leads_query = leads_query.filter(db.or_(Lead.first_name.like(pattern), Lead.last_name.like(pattern), Lead.phone.like(pattern), Lead.email.like(pattern)))
+        leads_query = leads_query.filter(
+            db.or_(
+                Lead.first_name.like(pattern), 
+                Lead.last_name.like(pattern), 
+                Lead.phone.like(pattern), 
+                Lead.email.like(pattern)
+            )
+        )
     if status:
         leads_query = leads_query.filter_by(status=status)
     leads = leads_query.order_by(Lead.created_at.desc()).all()
-    stats = {'total': len(leads), 'nowy': len([l for l in leads if l.status == 'nowy']), 'klient': len([l for l in leads if l.status == 'klient'])}
+    stats = {
+        'total': len(leads), 
+        'nowy': len([l for l in leads if l.status == 'nowy']), 
+        'klient': len([l for l in leads if l.status == 'klient'])
+    }
     return render_template('index.html', leads=leads, stats=stats, get_status_color=get_status_color, search_query=query, status_filter=status)
 
 @app.route('/export')
 @login_required
 def export_csv():
-    import csv, io
-    from flask import make_response
     leads = Lead.query.filter_by(user_id=session['user_id']).all()
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(['Imię', 'Nazwisko', 'Telefon', 'Email', 'Status', 'Źródło', 'Wartość'])
     for lead in leads:
-        writer.writerow([lead.first_name, lead.last_name, lead.phone or '', lead.email or '', lead.status, lead.source or '', lead.potential_value])
+        writer.writerow([
+            lead.first_name, 
+            lead.last_name, 
+            lead.phone or '', 
+            lead.email or '', 
+            lead.status, 
+            lead.source or '', 
+            lead.potential_value
+        ])
     output.seek(0)
     response = make_response(output.getvalue())
     response.headers['Content-Disposition'] = 'attachment; filename=leady.csv'
-    response.headers['Content-Type'] = 'text/csv'
+    response.headers['Content-Type'] = 'text/csv; charset=utf-8'
     return response
 
-def init_db():
-    with app.app_context():
-        db.create_all()
-        if not User.query.filter_by(username='admin').first():
-            admin = User(username='admin', email='admin@crm.com', password_hash=generate_password_hash('admin123'), role='admin', is_approved=True)
-            db.session.add(admin)
-            db.session.commit()
-            print("✓ Admin: admin / admin123")
+# ============== AUTOMATYCZNA INICJALIZACJA BAZY ==============
+# To wykona się zawsze - lokalnie i na Render
+with app.app_context():
+    db.create_all()
+    
+    # Utwórz admina jeśli nie istnieje
+    if not User.query.filter_by(username='admin').first():
+        admin = User(
+            username='admin', 
+            email='admin@crm.com', 
+            password_hash=generate_password_hash('admin123'), 
+            role='admin', 
+            is_approved=True
+        )
+        db.session.add(admin)
+        db.session.commit()
+        print("✓ Administrator utworzony!")
+        print("✓ Login: admin")
+        print("✓ Hasło: admin123")
+        print("✓ ZMIEŃ HASŁO PO PIERWSZYM LOGOWANIU!")
 
 if __name__ == '__main__':
-    init_db()
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
