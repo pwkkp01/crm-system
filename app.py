@@ -132,6 +132,69 @@ def delete_lead(lead_id):
     db.session.commit()
     flash('Lead usunięty', 'info')
     return redirect(url_for('index'))
+@app.route('/edit/<int:lead_id>', methods=['GET', 'POST'])
+@login_required
+def edit_lead(lead_id):
+    lead = Lead.query.get_or_404(lead_id)
+    if request.method == 'POST':
+        lead.first_name = request.form.get('first_name')
+        lead.last_name = request.form.get('last_name')
+        lead.phone = request.form.get('phone')
+        lead.email = request.form.get('email')
+        lead.status = request.form.get('status')
+        lead.source = request.form.get('source')
+        if request.form.get('birth_date'):
+            try:
+                lead.birth_date = datetime.strptime(request.form.get('birth_date'), '%Y-%m-%d').date()
+            except:
+                pass
+        if request.form.get('follow_up_date'):
+            try:
+                lead.follow_up_date = datetime.strptime(request.form.get('follow_up_date'), '%Y-%m-%d').date()
+            except:
+                pass
+        try:
+            lead.potential_value = float(request.form.get('potential_value', 0) or 0)
+            lead.sale_value = float(request.form.get('sale_value', 0) or 0)
+            lead.commission = float(request.form.get('commission', 0) or 0)
+        except:
+            pass
+        db.session.commit()
+        flash('Lead zaktualizowany!', 'success')
+        return redirect(url_for('lead_detail', lead_id=lead.id))
+    return render_template('edit_lead.html', lead=lead)
+
+@app.route('/search')
+@login_required
+def search():
+    query = request.args.get('q', '')
+    status = request.args.get('status', '')
+    leads_query = Lead.query.filter_by(user_id=session['user_id'])
+    if query:
+        pattern = f"%{query}%"
+        leads_query = leads_query.filter(db.or_(Lead.first_name.like(pattern), Lead.last_name.like(pattern), Lead.phone.like(pattern), Lead.email.like(pattern)))
+    if status:
+        leads_query = leads_query.filter_by(status=status)
+    leads = leads_query.order_by(Lead.created_at.desc()).all()
+    stats = {'total': len(leads), 'nowy': len([l for l in leads if l.status == 'nowy']), 'klient': len([l for l in leads if l.status == 'klient'])}
+    return render_template('index.html', leads=leads, stats=stats, get_status_color=get_status_color, search_query=query, status_filter=status)
+
+@app.route('/export')
+@login_required
+def export_csv():
+    import csv, io
+    from flask import make_response
+    leads = Lead.query.filter_by(user_id=session['user_id']).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Imię', 'Nazwisko', 'Telefon', 'Email', 'Status', 'Źródło', 'Wartość'])
+    for lead in leads:
+        writer.writerow([lead.first_name, lead.last_name, lead.phone or '', lead.email or '', lead.status, lead.source or '', lead.potential_value])
+    output.seek(0)
+    response = make_response(output.getvalue())
+    response.headers['Content-Disposition'] = 'attachment; filename=leady.csv'
+    response.headers['Content-Type'] = 'text/csv'
+    return response
 
 def init_db():
     with app.app_context():
