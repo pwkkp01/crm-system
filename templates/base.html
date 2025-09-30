@@ -18,6 +18,11 @@
                 <a class="btn btn-light btn-sm me-2" href="/add">
                     <i class="bi bi-person-plus"></i> Dodaj Lead
                 </a>
+                 {% if session.role == 'admin' %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('tags') }}">Tagi</a>
+                    </li>
+                    {% endif %}
                 <a class="btn btn-outline-light btn-sm" href="/logout">
                     <i class="bi bi-box-arrow-right"></i> Wyloguj ({{ session.username }})
                 </a>
