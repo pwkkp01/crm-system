@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
-<h2 class="mb-4">Edytuj: {{ lead.first_name }} {{ lead.last_name }}</h2>
-<div class="card">
-    <div class="card-body">
+<h2 class="mb-4"><i class="bi bi-pencil-square"></i> Edytuj: {{ lead.first_name }} {{ lead.last_name }}</h2>
+<div class="card shadow">
+    <div class="card-body p-4">
         <form method="POST">
             <div class="row mb-3">
                 <div class="col-md-6">
@@ -65,8 +65,36 @@
                     <input type="number" name="commission" class="form-control" step="0.01" value="{{ lead.commission or 0 }}">
                 </div>
             </div>
-            <button type="submit" class="btn btn-success">Zapisz</button>
-            <a href="/lead/{{ lead.id }}" class="btn btn-secondary">Anuluj</a>
+            
+            {% if tags %}
+            <div class="mb-3">
+                <label class="form-label"><i class="bi bi-tags"></i> Tagi (możesz wybrać kilka)</label>
+                <div class="row">
+                    {% for tag in tags %}
+                    <div class="col-md-4 mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="tags" value="{{ tag.id }}" id="tag{{ tag.id }}" 
+                                {% if tag in lead.tags %}checked{% endif %}>
+                            <label class="form-check-label" for="tag{{ tag.id }}">
+                                <span class="badge bg-{{ tag.color }}">{{ tag.name }}</span>
+                            </label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <hr class="my-4">
+            
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-check-circle"></i> Zapisz
+                </button>
+                <a href="/lead/{{ lead.id }}" class="btn btn-secondary">
+                    <i class="bi bi-x-circle"></i> Anuluj
+                </a>
+            </div>
         </form>
     </div>
 </div>
