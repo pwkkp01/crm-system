@@ -62,6 +62,24 @@
                 <input type="number" name="potential_value" class="form-control" step="0.01" value="0">
             </div>
             
+            {% if tags %}
+            <div class="mb-3">
+                <label class="form-label"><i class="bi bi-tags"></i> Tagi (możesz wybrać kilka)</label>
+                <div class="row">
+                    {% for tag in tags %}
+                    <div class="col-md-4 mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="tags" value="{{ tag.id }}" id="tag{{ tag.id }}">
+                            <label class="form-check-label" for="tag{{ tag.id }}">
+                                <span class="badge bg-{{ tag.color }}">{{ tag.name }}</span>
+                            </label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
             <hr class="my-4">
             
             <div class="d-flex gap-2">
