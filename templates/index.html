@@ -3,6 +3,34 @@
 {% block content %}
 <h1 class="mb-4"><i class="bi bi-speedometer2"></i> Dashboard</h1>
 
+<!-- Statystyki -->
+<div class="row mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="card text-white bg-primary shadow">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-people"></i> Wszystkie Leady</h5>
+                <h2 class="mb-0">{{ stats.total }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card text-white bg-secondary shadow">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-person-plus"></i> Nowe</h5>
+                <h2 class="mb-0">{{ stats.nowy }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card text-white bg-success shadow">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-check-circle"></i> Klienci</h5>
+                <h2 class="mb-0">{{ stats.klient }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Wyszukiwarka i filtry -->
 <div class="card shadow mb-4">
     <div class="card-body">
@@ -32,34 +60,20 @@
                 </a>
             </div>
         </form>
-    </div>
-</div>
-
-<!-- Statystyki -->
-<div class="row mb-4">
-    <div class="col-md-4 mb-3">
-        <div class="card text-white bg-primary shadow">
-            <div class="card-body">
-                <h5 class="card-title"><i class="bi bi-people"></i> Wszystkie Leady</h5>
-                <h2 class="mb-0">{{ stats.total }}</h2>
+        
+        {% if tags %}
+        <div class="mt-3 pt-3 border-top">
+            <strong><i class="bi bi-tags"></i> Filtruj po tagu:</strong>
+            <div class="mt-2">
+                <a href="/" class="badge bg-secondary me-1 mb-1 text-decoration-none" style="font-size: 0.9rem;">Wszystkie</a>
+                {% for tag in tags %}
+                    <a href="/search?tag={{ tag.id }}" class="badge bg-{{ tag.color }} me-1 mb-1 text-decoration-none" style="font-size: 0.9rem;">
+                        {{ tag.name }}
+                    </a>
+                {% endfor %}
             </div>
         </div>
-    </div>
-    <div class="col-md-4 mb-3">
-        <div class="card text-white bg-secondary shadow">
-            <div class="card-body">
-                <h5 class="card-title"><i class="bi bi-person-plus"></i> Nowe</h5>
-                <h2 class="mb-0">{{ stats.nowy }}</h2>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4 mb-3">
-        <div class="card text-white bg-success shadow">
-            <div class="card-body">
-                <h5 class="card-title"><i class="bi bi-check-circle"></i> Klienci</h5>
-                <h2 class="mb-0">{{ stats.klient }}</h2>
-            </div>
-        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -77,6 +91,7 @@
                         <th>Telefon</th>
                         <th>Email</th>
                         <th>Status</th>
+                        <th>Tagi</th>
                         <th>Źródło</th>
                         <th>Wartość</th>
                         <th>Akcje</th>
@@ -103,6 +118,11 @@
                                 {{ lead.status }}
                             </span>
                         </td>
+                        <td>
+                            {% for tag in lead.tags %}
+                                <span class="badge bg-{{ tag.color }}">{{ tag.name }}</span>
+                            {% endfor %}
+                        </td>
                         <td>{{ lead.source or '-' }}</td>
                         <td>{{ lead.potential_value }} PLN</td>
                         <td>
@@ -113,7 +133,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">
+                        <td colspan="8" class="text-center text-muted py-4">
                             <i class="bi bi-inbox" style="font-size: 3rem;"></i>
                             <p class="mt-2">Brak leadów. <a href="/add">Dodaj pierwszego leada!</a></p>
                         </td>
