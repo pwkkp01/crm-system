@@ -16,6 +16,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
+# ========== MODELE ==========
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -24,6 +26,12 @@ class User(db.Model):
     role = db.Column(db.String(20), default='admin')
     is_approved = db.Column(db.Boolean, default=True)
     monthly_goal = db.Column(db.Integer, default=10)
+
+# Tabela pośrednia dla relacji wiele-do-wielu Lead <-> Tag
+lead_tags = db.Table('lead_tags',
+    db.Column('lead_id', db.Integer, db.ForeignKey('lead.id'), primary_key=True),
+    db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), primary_key=True)
+)
 
 class Lead(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -40,12 +48,23 @@ class Lead(db.Model):
     commission = db.Column(db.Float, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    
+    # Relacja z tagami
+    tags = db.relationship('Tag', secondary=lead_tags, lazy='subquery', backref=db.backref('leads', lazy=True))
 
 class Note(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     lead_id = db.Column(db.Integer, db.ForeignKey('lead.id'), nullable=False)
+
+class Tag(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    color = db.Column(db.String(20), default='secondary')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# ========== DEKORATORY ==========
 
 def login_required(f):
     @wraps(f)
@@ -58,6 +77,8 @@ def login_required(f):
 def get_status_color(status):
     colors = {'nowy': 'secondary', 'umówione spotkanie': 'warning', 'oczekiwanie': 'warning', 'odezwać się': 'info', 'klient': 'success', 'spadł': 'danger'}
     return colors.get(status, 'secondary')
+
+# ========== ROUTING - AUTORYZACJA ==========
     
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -86,188 +107,6 @@ def logout():
     flash('Wylogowano', 'info')
     return redirect(url_for('login'))
 
-@app.route('/')
-@login_required
-def index():
-    leads = Lead.query.filter_by(user_id=session['user_id']).all()
-    stats = {
-        'total': len(leads), 
-        'nowy': len([l for l in leads if l.status == 'nowy']), 
-        'klient': len([l for l in leads if l.status == 'klient'])
-    }
-    return render_template('index.html', leads=leads, stats=stats, get_status_color=get_status_color)
-
-@app.route('/add', methods=['GET', 'POST'])
-@login_required
-def add_lead():
-    if request.method == 'POST':
-        birth_date = None
-        follow_up = None
-        if request.form.get('birth_date'):
-            try:
-                birth_date = datetime.strptime(request.form.get('birth_date'), '%Y-%m-%d').date()
-            except:
-                pass
-        if request.form.get('follow_up_date'):
-            try:
-                follow_up = datetime.strptime(request.form.get('follow_up_date'), '%Y-%m-%d').date()
-            except:
-                pass
-        lead = Lead(
-            first_name=request.form.get('first_name'), 
-            last_name=request.form.get('last_name'), 
-            phone=request.form.get('phone'), 
-            email=request.form.get('email'), 
-            birth_date=birth_date, 
-            follow_up_date=follow_up, 
-            status=request.form.get('status', 'nowy'), 
-            source=request.form.get('source'), 
-            potential_value=float(request.form.get('potential_value', 0) or 0), 
-            user_id=session['user_id']
-        )
-        db.session.add(lead)
-        db.session.commit()
-        flash('Lead dodany pomyślnie!', 'success')
-        return redirect(url_for('index'))
-    return render_template('add_lead.html')
-
-@app.route('/lead/<int:lead_id>')
-@login_required
-def lead_detail(lead_id):
-    lead = Lead.query.get_or_404(lead_id)
-    
-    # ZABEZPIECZENIE - Sprawdź uprawnienia
-    current_user = User.query.get(session['user_id'])
-    if lead.user_id != session['user_id'] and current_user.role != 'admin':
-        flash('Nie masz uprawnień do przeglądania tego leada!', 'danger')
-        return redirect(url_for('index'))
-    
-    notes = Note.query.filter_by(lead_id=lead_id).order_by(Note.created_at.desc()).all()
-    return render_template('lead_detail.html', lead=lead, notes=notes, get_status_color=get_status_color)
-
-@app.route('/add_note/<int:lead_id>', methods=['POST'])
-@login_required
-def add_note(lead_id):
-    lead = Lead.query.get_or_404(lead_id)
-    
-    # ZABEZPIECZENIE - Sprawdź uprawnienia
-    current_user = User.query.get(session['user_id'])
-    if lead.user_id != session['user_id'] and current_user.role != 'admin':
-        flash('Nie masz uprawnień!', 'danger')
-        return redirect(url_for('index'))
-    
-    content = request.form.get('content')
-    if content:
-        note = Note(content=content, lead_id=lead_id)
-        db.session.add(note)
-        db.session.commit()
-        flash('Notatka dodana!', 'success')
-    return redirect(url_for('lead_detail', lead_id=lead_id))
-
-@app.route('/delete/<int:lead_id>', methods=['POST'])
-@login_required
-def delete_lead(lead_id):
-    lead = Lead.query.get_or_404(lead_id)
-    
-    # ZABEZPIECZENIE - Sprawdź uprawnienia
-    current_user = User.query.get(session['user_id'])
-    if lead.user_id != session['user_id'] and current_user.role != 'admin':
-        flash('Nie masz uprawnień do usunięcia tego leada!', 'danger')
-        return redirect(url_for('index'))
-    
-    db.session.delete(lead)
-    db.session.commit()
-    flash('Lead usunięty', 'info')
-    return redirect(url_for('index'))
-
-@app.route('/edit/<int:lead_id>', methods=['GET', 'POST'])
-@login_required
-def edit_lead(lead_id):
-    lead = Lead.query.get_or_404(lead_id)
-    
-    # ZABEZPIECZENIE - Sprawdź uprawnienia
-    current_user = User.query.get(session['user_id'])
-    if lead.user_id != session['user_id'] and current_user.role != 'admin':
-        flash('Nie masz uprawnień do edycji tego leada!', 'danger')
-        return redirect(url_for('index'))
-    
-    if request.method == 'POST':
-        lead.first_name = request.form.get('first_name')
-        lead.last_name = request.form.get('last_name')
-        lead.phone = request.form.get('phone')
-        lead.email = request.form.get('email')
-        lead.status = request.form.get('status')
-        lead.source = request.form.get('source')
-        if request.form.get('birth_date'):
-            try:
-                lead.birth_date = datetime.strptime(request.form.get('birth_date'), '%Y-%m-%d').date()
-            except:
-                pass
-        if request.form.get('follow_up_date'):
-            try:
-                lead.follow_up_date = datetime.strptime(request.form.get('follow_up_date'), '%Y-%m-%d').date()
-            except:
-                pass
-        try:
-            lead.potential_value = float(request.form.get('potential_value', 0) or 0)
-            lead.sale_value = float(request.form.get('sale_value', 0) or 0)
-            lead.commission = float(request.form.get('commission', 0) or 0)
-        except:
-            pass
-        db.session.commit()
-        flash('Lead zaktualizowany!', 'success')
-        return redirect(url_for('lead_detail', lead_id=lead.id))
-    return render_template('edit_lead.html', lead=lead)
-
-@app.route('/search')
-@login_required
-def search():
-    query = request.args.get('q', '')
-    status = request.args.get('status', '')
-    leads_query = Lead.query.filter_by(user_id=session['user_id'])
-    if query:
-        pattern = f"%{query}%"
-        leads_query = leads_query.filter(
-            db.or_(
-                Lead.first_name.like(pattern), 
-                Lead.last_name.like(pattern), 
-                Lead.phone.like(pattern), 
-                Lead.email.like(pattern)
-            )
-        )
-    if status:
-        leads_query = leads_query.filter_by(status=status)
-    leads = leads_query.order_by(Lead.created_at.desc()).all()
-    stats = {
-        'total': len(leads), 
-        'nowy': len([l for l in leads if l.status == 'nowy']), 
-        'klient': len([l for l in leads if l.status == 'klient'])
-    }
-    return render_template('index.html', leads=leads, stats=stats, get_status_color=get_status_color, search_query=query, status_filter=status)
-
-@app.route('/export')
-@login_required
-def export_csv():
-    leads = Lead.query.filter_by(user_id=session['user_id']).all()
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(['Imię', 'Nazwisko', 'Telefon', 'Email', 'Status', 'Źródło', 'Wartość'])
-    for lead in leads:
-        writer.writerow([
-            lead.first_name, 
-            lead.last_name, 
-            lead.phone or '', 
-            lead.email or '', 
-            lead.status, 
-            lead.source or '', 
-            lead.potential_value
-        ])
-    output.seek(0)
-    response = make_response(output.getvalue())
-    response.headers['Content-Disposition'] = 'attachment; filename=leady.csv'
-    response.headers['Content-Type'] = 'text/csv; charset=utf-8'
-    return response
-    
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -302,6 +141,232 @@ def register():
         return redirect(url_for('login'))
     
     return render_template('register.html')
+
+# ========== ROUTING - LEADY ==========
+
+@app.route('/')
+@login_required
+def index():
+    leads = Lead.query.filter_by(user_id=session['user_id']).all()
+    stats = {
+        'total': len(leads), 
+        'nowy': len([l for l in leads if l.status == 'nowy']), 
+        'klient': len([l for l in leads if l.status == 'klient'])
+    }
+    return render_template('index.html', leads=leads, stats=stats, get_status_color=get_status_color)
+
+@app.route('/add', methods=['GET', 'POST'])
+@login_required
+def add_lead():
+    if request.method == 'POST':
+        birth_date = None
+        follow_up = None
+        if request.form.get('birth_date'):
+            try:
+                birth_date = datetime.strptime(request.form.get('birth_date'), '%Y-%m-%d').date()
+            except:
+                pass
+        if request.form.get('follow_up_date'):
+            try:
+                follow_up = datetime.strptime(request.form.get('follow_up_date'), '%Y-%m-%d').date()
+            except:
+                pass
+        
+        lead = Lead(
+            first_name=request.form.get('first_name'), 
+            last_name=request.form.get('last_name'), 
+            phone=request.form.get('phone'), 
+            email=request.form.get('email'), 
+            birth_date=birth_date, 
+            follow_up_date=follow_up, 
+            status=request.form.get('status', 'nowy'), 
+            source=request.form.get('source'), 
+            potential_value=float(request.form.get('potential_value', 0) or 0), 
+            user_id=session['user_id']
+        )
+        db.session.add(lead)
+        db.session.commit()
+        
+        # Dodaj tagi
+        tag_ids = request.form.getlist('tags')
+        for tag_id in tag_ids:
+            tag = Tag.query.get(int(tag_id))
+            if tag:
+                lead.tags.append(tag)
+        
+        db.session.commit()
+        flash('Lead dodany pomyślnie!', 'success')
+        return redirect(url_for('index'))
+    
+    all_tags = Tag.query.all()
+    return render_template('add_lead.html', tags=all_tags)
+
+@app.route('/lead/<int:lead_id>')
+@login_required
+def lead_detail(lead_id):
+    lead = Lead.query.get_or_404(lead_id)
+    
+    # Sprawdź uprawnienia
+    current_user = User.query.get(session['user_id'])
+    if lead.user_id != session['user_id'] and current_user.role != 'admin':
+        flash('Nie masz uprawnień do przeglądania tego leada!', 'danger')
+        return redirect(url_for('index'))
+    
+    notes = Note.query.filter_by(lead_id=lead_id).order_by(Note.created_at.desc()).all()
+    return render_template('lead_detail.html', lead=lead, notes=notes, get_status_color=get_status_color)
+
+@app.route('/add_note/<int:lead_id>', methods=['POST'])
+@login_required
+def add_note(lead_id):
+    lead = Lead.query.get_or_404(lead_id)
+    
+    # Sprawdź uprawnienia
+    current_user = User.query.get(session['user_id'])
+    if lead.user_id != session['user_id'] and current_user.role != 'admin':
+        flash('Nie masz uprawnień!', 'danger')
+        return redirect(url_for('index'))
+    
+    content = request.form.get('content')
+    if content:
+        note = Note(content=content, lead_id=lead_id)
+        db.session.add(note)
+        db.session.commit()
+        flash('Notatka dodana!', 'success')
+    return redirect(url_for('lead_detail', lead_id=lead_id))
+
+@app.route('/delete/<int:lead_id>', methods=['POST'])
+@login_required
+def delete_lead(lead_id):
+    lead = Lead.query.get_or_404(lead_id)
+    
+    # Sprawdź uprawnienia
+    current_user = User.query.get(session['user_id'])
+    if lead.user_id != session['user_id'] and current_user.role != 'admin':
+        flash('Nie masz uprawnień do usunięcia tego leada!', 'danger')
+        return redirect(url_for('index'))
+    
+    db.session.delete(lead)
+    db.session.commit()
+    flash('Lead usunięty', 'info')
+    return redirect(url_for('index'))
+
+@app.route('/edit/<int:lead_id>', methods=['GET', 'POST'])
+@login_required
+def edit_lead(lead_id):
+    lead = Lead.query.get_or_404(lead_id)
+    
+    # Sprawdź uprawnienia
+    current_user = User.query.get(session['user_id'])
+    if lead.user_id != session['user_id'] and current_user.role != 'admin':
+        flash('Nie masz uprawnień do edycji tego leada!', 'danger')
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        lead.first_name = request.form.get('first_name')
+        lead.last_name = request.form.get('last_name')
+        lead.phone = request.form.get('phone')
+        lead.email = request.form.get('email')
+        lead.status = request.form.get('status')
+        lead.source = request.form.get('source')
+        
+        if request.form.get('birth_date'):
+            try:
+                lead.birth_date = datetime.strptime(request.form.get('birth_date'), '%Y-%m-%d').date()
+            except:
+                pass
+        if request.form.get('follow_up_date'):
+            try:
+                lead.follow_up_date = datetime.strptime(request.form.get('follow_up_date'), '%Y-%m-%d').date()
+            except:
+                pass
+        try:
+            lead.potential_value = float(request.form.get('potential_value', 0) or 0)
+            lead.sale_value = float(request.form.get('sale_value', 0) or 0)
+            lead.commission = float(request.form.get('commission', 0) or 0)
+        except:
+            pass
+        
+        # Aktualizuj tagi
+        lead.tags = []
+        tag_ids = request.form.getlist('tags')
+        for tag_id in tag_ids:
+            tag = Tag.query.get(int(tag_id))
+            if tag:
+                lead.tags.append(tag)
+        
+        db.session.commit()
+        flash('Lead zaktualizowany!', 'success')
+        return redirect(url_for('lead_detail', lead_id=lead.id))
+    
+    all_tags = Tag.query.all()
+    return render_template('edit_lead.html', lead=lead, tags=all_tags)
+
+@app.route('/search')
+@login_required
+def search():
+    query = request.args.get('q', '')
+    status = request.args.get('status', '')
+    tag_id = request.args.get('tag', '')
+    
+    leads_query = Lead.query.filter_by(user_id=session['user_id'])
+    
+    if query:
+        pattern = f"%{query}%"
+        leads_query = leads_query.filter(
+            db.or_(
+                Lead.first_name.like(pattern), 
+                Lead.last_name.like(pattern), 
+                Lead.phone.like(pattern), 
+                Lead.email.like(pattern)
+            )
+        )
+    
+    if status:
+        leads_query = leads_query.filter_by(status=status)
+    
+    if tag_id:
+        tag = Tag.query.get(int(tag_id))
+        if tag:
+            leads_query = leads_query.filter(Lead.tags.contains(tag))
+    
+    leads = leads_query.order_by(Lead.created_at.desc()).all()
+    stats = {
+        'total': len(leads), 
+        'nowy': len([l for l in leads if l.status == 'nowy']), 
+        'klient': len([l for l in leads if l.status == 'klient'])
+    }
+    
+    all_tags = Tag.query.all()
+    return render_template('index.html', leads=leads, stats=stats, get_status_color=get_status_color, search_query=query, status_filter=status, tags=all_tags, selected_tag=tag_id)
+
+@app.route('/export')
+@login_required
+def export_csv():
+    leads = Lead.query.filter_by(user_id=session['user_id']).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Imię', 'Nazwisko', 'Telefon', 'Email', 'Status', 'Źródło', 'Wartość', 'Tagi'])
+    
+    for lead in leads:
+        tags_str = ', '.join([tag.name for tag in lead.tags])
+        writer.writerow([
+            lead.first_name, 
+            lead.last_name, 
+            lead.phone or '', 
+            lead.email or '', 
+            lead.status, 
+            lead.source or '', 
+            lead.potential_value,
+            tags_str
+        ])
+    
+    output.seek(0)
+    response = make_response(output.getvalue())
+    response.headers['Content-Disposition'] = 'attachment; filename=leady.csv'
+    response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+    return response
+
+# ========== ROUTING - UŻYTKOWNICY ==========
 
 @app.route('/users')
 @login_required
@@ -364,6 +429,56 @@ def change_role(user_id, role):
     db.session.commit()
     flash(f'Rola użytkownika {user.username} zmieniona na {role}', 'success')
     return redirect(url_for('users'))
+
+# ========== ROUTING - TAGI ==========
+
+@app.route('/tags')
+@login_required
+def tags():
+    current_user = User.query.get(session['user_id'])
+    if current_user.role != 'admin':
+        flash('Brak dostępu', 'danger')
+        return redirect(url_for('index'))
+    
+    all_tags = Tag.query.all()
+    return render_template('tags.html', tags=all_tags)
+
+@app.route('/add_tag', methods=['POST'])
+@login_required
+def add_tag():
+    current_user = User.query.get(session['user_id'])
+    if current_user.role != 'admin':
+        flash('Brak dostępu', 'danger')
+        return redirect(url_for('index'))
+    
+    name = request.form.get('name')
+    color = request.form.get('color', 'secondary')
+    
+    if Tag.query.filter_by(name=name).first():
+        flash('Tag o tej nazwie już istnieje!', 'danger')
+    else:
+        new_tag = Tag(name=name, color=color)
+        db.session.add(new_tag)
+        db.session.commit()
+        flash('Tag dodany!', 'success')
+    
+    return redirect(url_for('tags'))
+
+@app.route('/delete_tag/<int:tag_id>', methods=['POST'])
+@login_required
+def delete_tag(tag_id):
+    current_user = User.query.get(session['user_id'])
+    if current_user.role != 'admin':
+        flash('Brak dostępu', 'danger')
+        return redirect(url_for('index'))
+    
+    tag = Tag.query.get_or_404(tag_id)
+    db.session.delete(tag)
+    db.session.commit()
+    flash('Tag usunięty', 'info')
+    return redirect(url_for('tags'))
+
+# ========== INICJALIZACJA ==========
 
 with app.app_context():
     db.create_all()
