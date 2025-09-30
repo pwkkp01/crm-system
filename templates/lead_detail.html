@@ -60,13 +60,23 @@
                     </div>
                 </div>
                 
+                {% if lead.tags %}
+                <div class="mb-3">
+                    <p><strong><i class="bi bi-tags"></i> Tagi:</strong></p>
+                    <div>
+                        {% for tag in lead.tags %}
+                            <span class="badge bg-{{ tag.color }} me-1 mb-1">{{ tag.name }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
                 <hr>
                 
                 <div class="d-flex gap-2">
-                            <a href="/edit/{{ lead.id }}" class="btn btn-warning">
-                            <i class="bi bi-pencil"></i> Edytuj
-                        </a>
-
+                    <a href="/edit/{{ lead.id }}" class="btn btn-warning">
+                        <i class="bi bi-pencil"></i> Edytuj
+                    </a>
                     <form method="POST" action="/delete/{{ lead.id }}" style="display:inline;">
                         <button type="submit" class="btn btn-danger" onclick="return confirm('Czy na pewno usunąć tego leada?')">
                             <i class="bi bi-trash"></i> Usuń
