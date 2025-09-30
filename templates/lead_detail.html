@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}{{ lead.first_name }} {{ lead.last_name }} - CRM{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="bi bi-person-circle"></i> 
+        {{ lead.first_name }} {{ lead.last_name }}
+    </h2>
+    <span class="badge bg-{{ get_status_color(lead.status) }}" style="font-size: 1.2rem;">
+        {{ lead.status }}
+    </span>
+</div>
+
+<div class="row">
+    <!-- Informacje podstawowe -->
+    <div class="col-md-8">
+        <div class="card shadow mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Informacje</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <p><strong><i class="bi bi-telephone"></i> Telefon:</strong></p>
+                        {% if lead.phone %}
+                            <p><a href="tel:{{ lead.phone }}">{{ lead.phone }}</a></p>
+                        {% else %}
+                            <p class="text-muted">Brak</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong><i class="bi bi-envelope"></i> Email:</strong></p>
+                        {% if lead.email %}
+                            <p><a href="mailto:{{ lead.email }}">{{ lead.email }}</a></p>
+                        {% else %}
+                            <p class="text-muted">Brak</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <p><strong><i class="bi bi-cake"></i> Data urodzenia:</strong></p>
+                        <p>{{ lead.birth_date or '-' }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong><i class="bi bi-calendar-check"></i> Follow-up:</strong></p>
+                        <p>{{ lead.follow_up_date or '-' }}</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <p><strong><i class="bi bi-diagram-3"></i> Źródło:</strong></p>
+                        <p>{{ lead.source or '-' }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong><i class="bi bi-cash"></i> Wartość potencjalna:</strong></p>
+                        <p><strong>{{ lead.potential_value }} PLN</strong></p>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="d-flex gap-2">
+                    <form method="POST" action="/delete/{{ lead.id }}" style="display:inline;">
+                        <button type="submit" class="btn btn-danger" onclick="return confirm('Czy na pewno usunąć tego leada?')">
+                            <i class="bi bi-trash"></i> Usuń
+                        </button>
+                    </form>
+                    <a href="/" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> Powrót
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Notatki -->
+        <div class="card shadow">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0"><i class="bi bi-journal-text"></i> Notatki</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/add_note/{{ lead.id }}" class="mb-4">
+                    <div class="mb-2">
+                        <textarea name="content" class="form-control" rows="3" placeholder="Dodaj notatkę..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Dodaj notatkę
+                    </button>
+                </form>
+                
+                <hr>
+                
+                {% for note in notes %}
+                <div class="alert alert-light border">
+                    <small class="text-muted">
+                        <i class="bi bi-clock"></i> {{ note.created_at.strftime('%Y-%m-%d %H:%M') }}
+                    </small>
+                    <p class="mb-0 mt-2">{{ note.content }}</p>
+                </div>
+                {% else %}
+                <p class="text-muted text-center py-3">
+                    <i class="bi bi-chat-left-text"></i> Brak notatek
+                </p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sidebar - szybkie akcje -->
+    <div class="col-md-4">
+        <div class="card shadow">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-lightning"></i> Szybkie akcje</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    {% if lead.phone %}
+                    <a href="tel:{{ lead.phone }}" class="btn btn-success">
+                        <i class="bi bi-telephone-fill"></i> Zadzwoń
+                    </a>
+                    <a href="https://wa.me/{{ lead.phone|replace(' ', '')|replace('+', '') }}" target="_blank" class="btn btn-success">
+                        <i class="bi bi-whatsapp"></i> WhatsApp
+                    </a>
+                    {% endif %}
+                    {% if lead.email %}
+                    <a href="mailto:{{ lead.email }}" class="btn btn-primary">
+                        <i class="bi bi-envelope-fill"></i> Wyślij email
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
