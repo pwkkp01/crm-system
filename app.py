@@ -23,11 +23,10 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
-    role = db.Column(db.String(20), default='admin')
-    is_approved = db.Column(db.Boolean, default=True)
+    role = db.Column(db.String(20), default='user')
+    is_approved = db.Column(db.Boolean, default=False)
     monthly_goal = db.Column(db.Integer, default=10)
 
-# Tabela pośrednia dla relacji wiele-do-wielu Lead <-> Tag
 lead_tags = db.Table('lead_tags',
     db.Column('lead_id', db.Integer, db.ForeignKey('lead.id'), primary_key=True),
     db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), primary_key=True)
@@ -49,8 +48,8 @@ class Lead(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     
-    # Relacja z tagami
     tags = db.relationship('Tag', secondary=lead_tags, lazy='subquery', backref=db.backref('leads', lazy=True))
+    owner = db.relationship('User', backref='leads', foreign_keys=[user_id])
 
 class Note(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -64,7 +63,7 @@ class Tag(db.Model):
     color = db.Column(db.String(20), default='secondary')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# ========== DEKORATORY ==========
+# ========== DEKORATORY I FUNKCJE POMOCNICZE ==========
 
 def login_required(f):
     @wraps(f)
@@ -75,8 +74,20 @@ def login_required(f):
     return decorated_function
 
 def get_status_color(status):
-    colors = {'nowy': 'secondary', 'umówione spotkanie': 'warning', 'oczekiwanie': 'warning', 'odezwać się': 'info', 'klient': 'success', 'spadł': 'danger'}
+    colors = {
+        'nowy': 'secondary',
+        'umówione spotkanie': 'warning',
+        'oczekiwanie': 'warning',
+        'odezwać się': 'info',
+        'klient': 'success',
+        'spadł': 'danger'
+    }
     return colors.get(status, 'secondary')
+
+def can_edit_lead(lead):
+    """Tylko właściciel lub admin może edytować"""
+    current_user = User.query.get(session['user_id'])
+    return lead.user_id == session['user_id'] or current_user.role == 'admin'
 
 # ========== ROUTING - AUTORYZACJA ==========
     
@@ -147,20 +158,17 @@ def register():
 @app.route('/')
 @login_required
 def index():
-    current_user = User.query.get(session['user_id'])
-    
-    # Admin widzi wszystkie leady, zwykli użytkownicy tylko swoje
-    if current_user.role == 'admin':
-        leads = Lead.query.all()
-    else:
-        leads = Lead.query.filter_by(user_id=session['user_id']).all()
+    # WSZYSCY widzą wszystkie leady
+    leads = Lead.query.order_by(Lead.created_at.desc()).all()
     
     stats = {
         'total': len(leads), 
         'nowy': len([l for l in leads if l.status == 'nowy']), 
         'klient': len([l for l in leads if l.status == 'klient'])
     }
-    return render_template('index.html', leads=leads, stats=stats, get_status_color=get_status_color)
+    
+    all_tags = Tag.query.all()
+    return render_template('index.html', leads=leads, stats=stats, get_status_color=get_status_color, tags=all_tags, can_edit_lead=can_edit_lead)
 
 @app.route('/add', methods=['GET', 'POST'])
 @login_required
@@ -192,7 +200,7 @@ def add_lead():
             user_id=session['user_id']
         )
         db.session.add(lead)
-        db.session.commit()
+        db.session.flush()
         
         # Dodaj tagi
         tag_ids = request.form.getlist('tags')
@@ -212,26 +220,20 @@ def add_lead():
 @login_required
 def lead_detail(lead_id):
     lead = Lead.query.get_or_404(lead_id)
-    
-    # Sprawdź uprawnienia
-    current_user = User.query.get(session['user_id'])
-    if lead.user_id != session['user_id'] and current_user.role != 'admin':
-        flash('Nie masz uprawnień do przeglądania tego leada!', 'danger')
-        return redirect(url_for('index'))
-    
     notes = Note.query.filter_by(lead_id=lead_id).order_by(Note.created_at.desc()).all()
-    return render_template('lead_detail.html', lead=lead, notes=notes, get_status_color=get_status_color)
+    is_owner = lead.user_id == session['user_id']
+    
+    return render_template('lead_detail.html', lead=lead, notes=notes, get_status_color=get_status_color, is_owner=is_owner, can_edit_lead=can_edit_lead)
 
 @app.route('/add_note/<int:lead_id>', methods=['POST'])
 @login_required
 def add_note(lead_id):
     lead = Lead.query.get_or_404(lead_id)
     
-    # Sprawdź uprawnienia
-    current_user = User.query.get(session['user_id'])
-    if lead.user_id != session['user_id'] and current_user.role != 'admin':
-        flash('Nie masz uprawnień!', 'danger')
-        return redirect(url_for('index'))
+    # Tylko właściciel lub admin może dodawać notatki
+    if not can_edit_lead(lead):
+        flash('Nie masz uprawnień do dodawania notatek!', 'danger')
+        return redirect(url_for('lead_detail', lead_id=lead_id))
     
     content = request.form.get('content')
     if content:
@@ -246,9 +248,8 @@ def add_note(lead_id):
 def delete_lead(lead_id):
     lead = Lead.query.get_or_404(lead_id)
     
-    # Sprawdź uprawnienia
-    current_user = User.query.get(session['user_id'])
-    if lead.user_id != session['user_id'] and current_user.role != 'admin':
+    # Tylko właściciel lub admin może usuwać
+    if not can_edit_lead(lead):
         flash('Nie masz uprawnień do usunięcia tego leada!', 'danger')
         return redirect(url_for('index'))
     
@@ -262,11 +263,10 @@ def delete_lead(lead_id):
 def edit_lead(lead_id):
     lead = Lead.query.get_or_404(lead_id)
     
-    # Sprawdź uprawnienia
-    current_user = User.query.get(session['user_id'])
-    if lead.user_id != session['user_id'] and current_user.role != 'admin':
+    # Tylko właściciel lub admin może edytować
+    if not can_edit_lead(lead):
         flash('Nie masz uprawnień do edycji tego leada!', 'danger')
-        return redirect(url_for('index'))
+        return redirect(url_for('lead_detail', lead_id=lead_id))
     
     if request.method == 'POST':
         lead.first_name = request.form.get('first_name')
@@ -315,13 +315,8 @@ def search():
     status = request.args.get('status', '')
     tag_id = request.args.get('tag', '')
     
-    current_user = User.query.get(session['user_id'])
-    
-    # Admin widzi wszystkie, użytkownicy tylko swoje
-    if current_user.role == 'admin':
-        leads_query = Lead.query
-    else:
-        leads_query = Lead.query.filter_by(user_id=session['user_id'])
+    # WSZYSCY widzą wszystkie leady
+    leads_query = Lead.query
     
     if query:
         pattern = f"%{query}%"
@@ -350,22 +345,16 @@ def search():
     }
     
     all_tags = Tag.query.all()
-    return render_template('index.html', leads=leads, stats=stats, get_status_color=get_status_color, search_query=query, status_filter=status, tags=all_tags, selected_tag=tag_id)
+    return render_template('index.html', leads=leads, stats=stats, get_status_color=get_status_color, search_query=query, status_filter=status, tags=all_tags, selected_tag=tag_id, can_edit_lead=can_edit_lead)
 
 @app.route('/export')
 @login_required
 def export_csv():
-    current_user = User.query.get(session['user_id'])
-    
-    # Admin eksportuje wszystko, użytkownicy tylko swoje
-    if current_user.role == 'admin':
-        leads = Lead.query.all()
-    else:
-        leads = Lead.query.filter_by(user_id=session['user_id']).all()
-    
+    # Eksportuj wszystkie leady (wszyscy widzą wszystkie)
+    leads = Lead.query.all()
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(['Imię', 'Nazwisko', 'Telefon', 'Email', 'Status', 'Źródło', 'Wartość', 'Tagi'])
+    writer.writerow(['Imię', 'Nazwisko', 'Telefon', 'Email', 'Status', 'Źródło', 'Wartość', 'Właściciel', 'Tagi'])
     
     for lead in leads:
         tags_str = ', '.join([tag.name for tag in lead.tags])
@@ -377,6 +366,7 @@ def export_csv():
             lead.status, 
             lead.source or '', 
             lead.potential_value,
+            lead.owner.username,
             tags_str
         ])
     
@@ -500,25 +490,23 @@ def delete_tag(tag_id):
 
 # ========== INICJALIZACJA ==========
 
-def init_db():
-    with app.app_context():
-        db.create_all()
-        
-        if not User.query.filter_by(username='admin').first():
-            admin = User(
-                username='admin', 
-                email='admin@crm.com', 
-                password_hash=generate_password_hash('admin123'), 
-                role='admin', 
-                is_approved=True
-            )
-            db.session.add(admin)
-            db.session.commit()
-            print("✓ Administrator utworzony!")
-            print("✓ Login: admin")
-            print("✓ Hasło: admin123")
-            print("✓ ZMIEŃ HASŁO PO PIERWSZYM LOGOWANIU!")
+with app.app_context():
+    db.create_all()
+    
+    if not User.query.filter_by(username='admin').first():
+        admin = User(
+            username='admin', 
+            email='admin@crm.com', 
+            password_hash=generate_password_hash('admin123'), 
+            role='admin', 
+            is_approved=True
+        )
+        db.session.add(admin)
+        db.session.commit()
+        print("✓ Administrator utworzony!")
+        print("✓ Login: admin")
+        print("✓ Hasło: admin123")
+        print("✓ ZMIEŃ HASŁO PO PIERWSZYM LOGOWANIU!")
 
 if __name__ == '__main__':
-    init_db()
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
