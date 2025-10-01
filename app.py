@@ -147,7 +147,14 @@ def register():
 @app.route('/')
 @login_required
 def index():
-    leads = Lead.query.filter_by(user_id=session['user_id']).all()
+    current_user = User.query.get(session['user_id'])
+    
+    # Admin widzi wszystkie leady, zwykli użytkownicy tylko swoje
+    if current_user.role == 'admin':
+        leads = Lead.query.all()
+    else:
+        leads = Lead.query.filter_by(user_id=session['user_id']).all()
+    
     stats = {
         'total': len(leads), 
         'nowy': len([l for l in leads if l.status == 'nowy']), 
@@ -308,7 +315,13 @@ def search():
     status = request.args.get('status', '')
     tag_id = request.args.get('tag', '')
     
-    leads_query = Lead.query.filter_by(user_id=session['user_id'])
+    current_user = User.query.get(session['user_id'])
+    
+    # Admin widzi wszystkie, użytkownicy tylko swoje
+    if current_user.role == 'admin':
+        leads_query = Lead.query
+    else:
+        leads_query = Lead.query.filter_by(user_id=session['user_id'])
     
     if query:
         pattern = f"%{query}%"
@@ -342,7 +355,14 @@ def search():
 @app.route('/export')
 @login_required
 def export_csv():
-    leads = Lead.query.filter_by(user_id=session['user_id']).all()
+    current_user = User.query.get(session['user_id'])
+    
+    # Admin eksportuje wszystko, użytkownicy tylko swoje
+    if current_user.role == 'admin':
+        leads = Lead.query.all()
+    else:
+        leads = Lead.query.filter_by(user_id=session['user_id']).all()
+    
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(['Imię', 'Nazwisko', 'Telefon', 'Email', 'Status', 'Źródło', 'Wartość', 'Tagi'])
@@ -480,23 +500,25 @@ def delete_tag(tag_id):
 
 # ========== INICJALIZACJA ==========
 
-with app.app_context():
-    db.create_all()
-    
-    if not User.query.filter_by(username='admin').first():
-        admin = User(
-            username='admin', 
-            email='admin@crm.com', 
-            password_hash=generate_password_hash('admin123'), 
-            role='admin', 
-            is_approved=True
-        )
-        db.session.add(admin)
-        db.session.commit()
-        print("✓ Administrator utworzony!")
-        print("✓ Login: admin")
-        print("✓ Hasło: admin123")
-        print("✓ ZMIEŃ HASŁO PO PIERWSZYM LOGOWANIU!")
+def init_db():
+    with app.app_context():
+        db.create_all()
+        
+        if not User.query.filter_by(username='admin').first():
+            admin = User(
+                username='admin', 
+                email='admin@crm.com', 
+                password_hash=generate_password_hash('admin123'), 
+                role='admin', 
+                is_approved=True
+            )
+            db.session.add(admin)
+            db.session.commit()
+            print("✓ Administrator utworzony!")
+            print("✓ Login: admin")
+            print("✓ Hasło: admin123")
+            print("✓ ZMIEŃ HASŁO PO PIERWSZYM LOGOWANIU!")
 
 if __name__ == '__main__':
+    init_db()
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
