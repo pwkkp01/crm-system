@@ -14,27 +14,33 @@
             <a class="navbar-brand" href="/">
                 <i class="bi bi-briefcase-fill"></i> CRM System
             </a>
-            <div class="d-flex">
-                <a class="btn btn-light btn-sm me-2" href="/add">
-                    <i class="bi bi-person-plus"></i> Dodaj Lead
-                </a>
-                 {% if session.role == 'admin' %}
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/add">+ Lead</a>
+                    </li>
+                    {% if session.role == 'admin' %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('users') }}">Użytkownicy</a>
+                    </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('tags') }}">Tagi</a>
                     </li>
                     {% endif %}
-                <a class="btn btn-outline-light btn-sm" href="/logout">
-                    <i class="bi bi-box-arrow-right"></i> Wyloguj ({{ session.username }})
-                </a>
+                </ul>
+                <div class="d-flex">
+                    <a class="btn btn-outline-light btn-sm" href="/logout">
+                        <i class="bi bi-box-arrow-right"></i> Wyloguj ({{ session.username }})
+                    </a>
+                </div>
             </div>
         </div>
     </nav>
-  {% endif %}
-                    {% if session.role == 'admin' %}
-                        <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('users') }}">Użytkownicy</a>
-                        </li>
-                        {% endif %}
+    {% endif %}
+
     <div class="container mt-4">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
